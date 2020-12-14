@@ -1,4 +1,5 @@
 from nlp_tools.tokenizers import WhitespaceTokenizer
+import torch
 from torch import nn
 import logging
 from transformers import BertModel
@@ -6,6 +7,7 @@ from utils.model_utils import use_cuda, device
 import numpy as np
 # from cfg import bert_path
 import torch.nn.functional as F
+import logging
 
 # build word encoder
 dropout = 0.15
@@ -22,9 +24,15 @@ class BertSoftmaxModel(nn.Module):
         self.bert = BertModel.from_pretrained(bert_path)
         bert_parameters = self.get_bert_parameters()
 
-        self.dense = nn.Linear(768, label_encoder.label_size, bias=True)
-        parameters.extend(
-            list(filter(lambda p: p.requires_grad, self.dense.parameters())))
+        self.siam_dense = nn.Linear(768, 256, bias=True)
+
+        self.fc1 = nn.Linear(256*2, 64, bias=True)
+        self.fc2 = nn.Linear(64, 1, bias=True)
+
+
+        parameters.extend(list(filter(lambda p: p.requires_grad, self.siam_dense.parameters())))
+        parameters.extend(list(filter(lambda p: p.requires_grad, self.fc1.parameters())))
+        parameters.extend(list(filter(lambda p: p.requires_grad, self.fc2.parameters())))
 
         if use_cuda:
             self.to(device)
@@ -50,22 +58,23 @@ class BertSoftmaxModel(nn.Module):
         return optimizer_parameters
 
     def forward(self, batch_inputs):
-        input_ids, token_type_ids = batch_inputs
+        input_ids1, inputs_ids2, token_type_ids = batch_inputs
 
-        sequence_output, pooled_output = self.bert(
-            input_ids=input_ids, token_type_ids=token_type_ids)
-
+        sequence_output1, pooled_output1 = self.bert(
+            input_ids=input_ids1, token_type_ids=token_type_ids)
+        sequence_output2, pooled_output2 = self.bert(
+            input_ids=inputs_ids2, token_type_ids=token_type_ids)
+        # print(pooled_output1)
         # if self.training:
         #     sequence_output = self.dropout(sequence_output)
+        logging.info("sequence_output_shape:{}, pooled_output_shape:{}".format(sequence_output1.shape, pooled_output1.shape))
+        out1 = self.siam_dense(pooled_output1)
+        out2 = self.siam_dense(pooled_output2)
 
-        out = self.dense(sequence_output)
+        out = torch.cat([out1, out2], dim=1)
+        # print("out_shape:{}".format(out.shape))
+        score = self.fc2(self.fc1(out)).squeeze(dim=1)
 
-        score = out
-        # score = F.softmax(out, dim=-1)  # dim=-1： 对最后一维进行softmax
-        # print("score:{}".format(score.shape))
-        # print(score[0,:,:])
-        score = score.view(score.shape[0] * score.shape[1], score.shape[2])
+        # print("score_shape:{}".format(score.shape))
+        # score = score.view(score.shape[0] * score.shape[1], score.shape[2])
         return score
-
-        # one_hot_labels = tf.one_hot(labels, depth=num_labels, dtype=tf.float32)
-

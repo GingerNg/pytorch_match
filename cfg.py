@@ -26,7 +26,7 @@ baike_vec_path = os.path.join(proj_path, "data/w2v.h5")
 stop_word_path = os.path.join(proj_path, "data/stopwords.txt")
 
 # 从第几个epoch开始resume训练，如果为0，从头开始
-RESUME_EPOCH = 2
+RESUME_EPOCH = 0
 
 
 

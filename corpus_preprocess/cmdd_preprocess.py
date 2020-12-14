@@ -19,15 +19,15 @@ import copy
 
 def split_dataset(raw_path, train_path, dev_path, test_path):
     df = pd.read_csv(raw_path)
-    train_set, dev_test_set = train_test_split(df, shuffle=True, test_size=0.2)
+    train_set, dev_test_set = train_test_split(df, shuffle=True, test_size=0.1)
     print(len(dev_test_set))
     print(len(train_set))
     dev_set, test_set = train_test_split(
         dev_test_set, shuffle=True, test_size=0.5)
-    train_set.to_csv(train_path)
+    dev_set.to_csv(train_path)
     dev_set.to_csv(dev_path)
     test_set.to_csv(test_path)
-    print('done')
+    print('split_dataset done')
     # df = sklearn_utils.shuffle(df)
 
 
@@ -39,13 +39,13 @@ def process(path):
     for data in data_list:
         # print(data)
         subsequence = {"question": list(data[4]), "answer": list(
-            data[5]), "category": data[6], "tag": 1}
+            data[5]), "category": data[6], "tag": 1.0}
         dataset.append(subsequence)
     random.shuffle(dataset)
     for i in range(len(dataset)-1):
         subsequence = copy.deepcopy(dataset[i])
         subsequence["answer"] = dataset[i+1]["answer"]
-        subsequence["tag"] = -1
+        subsequence["tag"] = -1.0
         dataset.append(subsequence)
     return dataset
 
@@ -81,13 +81,10 @@ class DatasetProcesser(object):
             # label
             category_ids = label2id(dat["category"])
             ids = dat["tag"]
+            dat["question"]  = dat["question"][0:self.tokenizer.max_len-2]
+            dat["answer"]  = dat["answer"][0:self.tokenizer.max_len-2]
             question_token_ids = self.tokenizer.tokenize(dat["question"])
             answer_token_ids = self.tokenizer.tokenize(dat["answer"])
-            # for sent_len, sent_words in sents_words:
-            #     word_ids = vocab.word2id(sent_words)
-            #     extword_ids = emb_vocab.extword2id(sent_words)
-            #     # sent_len 句子长度：即句子中词个数
-            #     doc.append([sent_len, word_ids, extword_ids])
             examples.append([ids, question_token_ids, answer_token_ids, category_ids])
 
         logging.info('Total %d docs.' % len(examples))
@@ -98,10 +95,6 @@ class DatasetProcesser(object):
         if shuffle:
             np.random.shuffle(data)
             sorted_data = data
-            # lengths = [example[1] for example in data]
-            # noisy_lengths = [- (l + np.random.uniform(- noise, noise)) for l in lengths]
-            # sorted_indices = np.argsort(noisy_lengths).tolist()
-            # sorted_data = [data[i] for i in sorted_indices]
         else:
             sorted_data = data
 
@@ -117,15 +110,15 @@ class DatasetProcesser(object):
     def batch2tensor(self, batch_data):
         batch_size = len(batch_data)
         max_sent_len = 200
-        doc_labels = []
-        for doc_data in batch_data:
-            # 输出序列长度对齐
-            if len(doc_data[0]) >= max_sent_len:
-                doc_labels.extend(doc_data[0][0:max_sent_len])
-            else:
-                doc_labels.extend(
-                    doc_data[0] + [0]*(max_sent_len-len(doc_data[0])))
-        batch_labels = torch.LongTensor(doc_labels)
+        # doc_labels = []
+        # for doc_data in batch_data:
+        #     # xul
+        #     if len(doc_data[0]) >= max_sent_len:
+        #         doc_labels.extend(doc_data[0][0:max_sent_len])
+        #     else:
+        #         doc_labels.extend(
+        #             doc_data[0] + [0]*(max_sent_len-len(doc_data[0])))
+        # # batch_labels = torch.LongTensor(doc_labels)
 
         token_type_ids = [0] * max_sent_len
         batch_inputs1 = torch.zeros(
@@ -134,20 +127,26 @@ class DatasetProcesser(object):
             (batch_size, max_sent_len), dtype=torch.int64)
         batch_inputs_type = torch.zeros(
             (batch_size, max_sent_len), dtype=torch.int64)
+        batch_labels = torch.zeros(
+            (batch_size, ), dtype=torch.float)
 
         for b in range(batch_size):
             question_token_ids = batch_data[b][1]
             answer_token_ids = batch_data[b][2]
+            batch_labels[b] = batch_data[b][0]
             # ids = batch_data[b][0]
-            for word_idx in range(min(max_sent_len, len(question_token_ids))):
-                batch_inputs1[b, word_idx] = question_token_ids[word_idx]
+            for word_idx in range(max_sent_len):
+                if word_idx < len(question_token_ids):
+                    batch_inputs1[b, word_idx] = question_token_ids[word_idx]
+                if word_idx < len(answer_token_ids):
+                    batch_inputs2[b, word_idx] = answer_token_ids[word_idx]
                 batch_inputs_type[b, word_idx] = token_type_ids[word_idx]
-                batch_inputs2[b, word_idx] = answer_token_ids[word_idx]
-                # batch_labels[b, word_idx] = ids[word_idx]
+
 
         if use_cuda:
             batch_inputs1 = batch_inputs1.to(device)
             batch_inputs2 = batch_inputs2.to(device)
+            batch_inputs_type = batch_inputs_type.to(device)
             batch_labels = batch_labels.to(device)
         # print("batch_labels_shape:{}".format(batch_labels.shape))
         return (batch_inputs1, batch_inputs2, batch_inputs_type), batch_labels
@@ -156,8 +155,8 @@ class DatasetProcesser(object):
 class LabelEncoer():  # 标签编码
     def __init__(self):
         self.unk = 1
-        # self._id2label = PUNCTUATION_VOCABULARY
-        # self.target_names = PUNCTUATION_VOCABULARY
+        self._id2label = []
+        self.target_names = []
         # process label
         label2name = {0: 'Oncology_肿瘤科', 1: 'IM_内科', 2: 'OAGD_妇产科',
                       3: 'Surgical_外科', 4: 'Andriatria_男科', 5: 'Surgical_外科', }

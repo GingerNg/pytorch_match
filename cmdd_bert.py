@@ -50,7 +50,7 @@ config.define("use_pretrained", False, "use pretrained word embedding")
 config.define("tuning_emb", False, "tune pretrained word embedding while training")
 config.define("emb_dim", 300, "embedding dimension for encoder and decoder input words/tokens")
 
-config.define("train_batch_size", 16, "train_batch_size")
+config.define("train_batch_size", 8, "train_batch_size")
 config.define("test_batch_size", 16, "test_batch_size")
 config.define("epochs", 100, "epochs")
 config.define("clip", 5.0, "clip")
@@ -129,6 +129,7 @@ def run(mtd="fold_split"):
                 torch.cuda.empty_cache()
                 batch_inputs, batch_labels = dataset_processer.batch2tensor(batch_data)
                 batch_outputs = model(batch_inputs)
+                # print("batch_labels_shape:{}, batch_outputs_shape:{}".format(batch_labels.shape, batch_outputs.shape))
                 loss = criterion(batch_outputs, batch_labels)
                 loss.backward()
 
@@ -136,7 +137,7 @@ def run(mtd="fold_split"):
                 losses += loss_value
                 overall_losses += loss_value
 
-                y_pred.extend(torch.max(batch_outputs, dim=1)[1].cpu().numpy().tolist())
+                y_pred.extend(batch_outputs.detach().cpu().numpy().tolist())
                 y_true.extend(batch_labels.cpu().numpy().tolist())
 
                 # nn.utils.clip_grad_norm_(optimizer.all_params, max_norm=config["clip"])  # 梯度裁剪
@@ -169,4 +170,6 @@ def run(mtd="fold_split"):
 
 
 if __name__ == "__main__":
-    run(mtd=MthStep.process_data.value)
+    # run(mtd=MthStep.fold_split.value)
+    # run(mtd=MthStep.process_data.value)
+    run(mtd=MthStep.train.value)
