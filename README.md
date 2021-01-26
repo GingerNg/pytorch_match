@@ -47,3 +47,26 @@ https://github.com/Toyhom/Chinese-medical-dialogue-data
 |=============================================================================|
 |  No running processes found                                                 |
 +-----------------------------------------------------------------------------+
+
+
+
+### 文本匹配
+本文匹配, 或称语义相似匹配, 是NLP领域最基础的任务之一, 包括信息检索, 问答系统等问题都可以看作针对不同样本集的文本匹配应用.
+
+- 文档相似度
+### 短文本相似度度
+### 文档相似度
+### 问答匹配
+
+[文本匹配方法 paper笔记](https://zhuanlan.zhihu.com/p/45089113)
+
+#### Representation model
+- Siamese Network
+- Deep Structured Semantic model
+
+#### Interaction model
+基于交互的模型认为文本间的*匹配特征*对预测有很大帮助, 通过不同策略构建匹配特征, 与深度模型结合使用, 尽可能保留重要的句子间相似信息.
+- Text Matching as Image Recognition
+- Pairwise Word Interaction Modeling with Deep Neural Networks for Semantic Similarity Measurement
+- Bilateral Multi-Perspective Matching for Natural Language Sentences
+- Lexical Decomposition and Composition

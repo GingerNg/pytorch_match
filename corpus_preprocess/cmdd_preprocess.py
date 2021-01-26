@@ -19,12 +19,13 @@ import copy
 
 def split_dataset(raw_path, train_path, dev_path, test_path):
     df = pd.read_csv(raw_path)
-    train_set, dev_test_set = train_test_split(df, shuffle=True, test_size=0.1)
+    df = df[df["category"] == "IM_内科"]
+    df = df[0:200]
+    train_set, dev_test_set = train_test_split(df, shuffle=True, test_size=0.2)
     print(len(dev_test_set))
     print(len(train_set))
-    dev_set, test_set = train_test_split(
-        dev_test_set, shuffle=True, test_size=0.5)
-    dev_set.to_csv(train_path)
+    dev_set, test_set = train_test_split(dev_test_set, shuffle=True, test_size=0.5)
+    train_set.to_csv(train_path)
     dev_set.to_csv(dev_path)
     test_set.to_csv(test_path)
     print('split_dataset done')
@@ -39,14 +40,17 @@ def process(path):
     for data in data_list:
         # print(data)
         subsequence = {"question": list(data[4]), "answer": list(
-            data[5]), "category": data[6], "tag": 1.0}
+            data[5]), "category": data[6], "tag": 1}
         dataset.append(subsequence)
-    random.shuffle(dataset)
     for i in range(len(dataset)-1):
         subsequence = copy.deepcopy(dataset[i])
-        subsequence["answer"] = dataset[i+1]["answer"]
-        subsequence["tag"] = -1.0
+        # 随机采样
+        inds = list(range(0, i)) + list(range(i+1, len(dataset)))
+        ind = random.sample(inds, 1)[0]
+        subsequence["answer"] = dataset[ind]["answer"]
+        subsequence["tag"] = 0
         dataset.append(subsequence)
+    random.shuffle(dataset)
     return dataset
 
 
@@ -55,7 +59,7 @@ def process_data(config, train_path, dev_path):
     dev_set = process(dev_path)
     file_utils.write_json(config["train_set"], train_set)
     file_utils.write_json(config["dev_set"], dev_set)
-    print("done")
+    print("process_data　done")
 
 
 def _batch_slice(data, batch_size):
@@ -81,11 +85,12 @@ class DatasetProcesser(object):
             # label
             category_ids = label2id(dat["category"])
             ids = dat["tag"]
-            dat["question"]  = dat["question"][0:self.tokenizer.max_len-2]
-            dat["answer"]  = dat["answer"][0:self.tokenizer.max_len-2]
+            dat["question"] = dat["question"][0:self.tokenizer.max_len-2]
+            dat["answer"] = dat["answer"][0:self.tokenizer.max_len-2]
             question_token_ids = self.tokenizer.tokenize(dat["question"])
             answer_token_ids = self.tokenizer.tokenize(dat["answer"])
-            examples.append([ids, question_token_ids, answer_token_ids, category_ids])
+            examples.append(
+                [ids, question_token_ids, answer_token_ids, category_ids])
 
         logging.info('Total %d docs.' % len(examples))
         return examples
@@ -141,7 +146,6 @@ class DatasetProcesser(object):
                 if word_idx < len(answer_token_ids):
                     batch_inputs2[b, word_idx] = answer_token_ids[word_idx]
                 batch_inputs_type[b, word_idx] = token_type_ids[word_idx]
-
 
         if use_cuda:
             batch_inputs1 = batch_inputs1.to(device)

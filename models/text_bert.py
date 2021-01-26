@@ -22,24 +22,39 @@ class BertSoftmaxModel(nn.Module):
 
         self.tokenizer = WhitespaceTokenizer(bert_path)
         self.bert = BertModel.from_pretrained(bert_path)
-        bert_parameters = self.get_bert_parameters()
+        # bert_parameters = self.get_bert_parameters()
 
-        self.siam_dense = nn.Linear(768, 256, bias=True)
+        self.siam_dense1 = nn.Sequential(nn.Linear(768, 1024, bias=True),
+                                         nn.ReLU(),
+                                         nn.Linear(1024, 1024, bias=True),
+                                         nn.ReLU())
+        self.siam_dense2 = nn.Sequential(nn.Linear(768, 1024, bias=True),
+                                         nn.ReLU(),
+                                         nn.Linear(1024, 1024, bias=True),
+                                         nn.ReLU())
 
-        self.fc1 = nn.Linear(256*2, 64, bias=True)
+        self.fc1 = nn.Sequential(nn.Linear(1024*2, 256*2, bias=True),
+                                 nn.ReLU(),
+                                 nn.Linear(256*2, 64, bias=True),
+                                 nn.ReLU(),
+                                 )
         self.fc2 = nn.Linear(64, 1, bias=True)
 
-
-        parameters.extend(list(filter(lambda p: p.requires_grad, self.siam_dense.parameters())))
-        parameters.extend(list(filter(lambda p: p.requires_grad, self.fc1.parameters())))
-        parameters.extend(list(filter(lambda p: p.requires_grad, self.fc2.parameters())))
+        parameters.extend(
+            list(filter(lambda p: p.requires_grad, self.siam_dense1.parameters())))
+        parameters.extend(
+            list(filter(lambda p: p.requires_grad, self.siam_dense2.parameters())))
+        parameters.extend(
+            list(filter(lambda p: p.requires_grad, self.fc1.parameters())))
+        parameters.extend(
+            list(filter(lambda p: p.requires_grad, self.fc2.parameters())))
 
         if use_cuda:
             self.to(device)
 
         if len(parameters) > 0:
             self.all_parameters["basic_parameters"] = parameters
-        self.all_parameters["bert_parameters"] = bert_parameters
+        # self.all_parameters["bert_parameters"] = bert_parameters  # bert参数不训练
         self.pooled = False
         logging.info('Build Bert encoder with pooled {}.'.format(self.pooled))
 
@@ -67,14 +82,20 @@ class BertSoftmaxModel(nn.Module):
         # print(pooled_output1)
         # if self.training:
         #     sequence_output = self.dropout(sequence_output)
-        logging.info("sequence_output_shape:{}, pooled_output_shape:{}".format(sequence_output1.shape, pooled_output1.shape))
-        out1 = self.siam_dense(pooled_output1)
-        out2 = self.siam_dense(pooled_output2)
+        logging.info("sequence_output_shape:{}, pooled_output_shape:{}".format(
+            sequence_output1.shape, pooled_output1.shape))
+        out1 = self.siam_dense1(pooled_output1)
+        out2 = self.siam_dense2(pooled_output2)
 
-        out = torch.cat([out1, out2], dim=1)
-        # print("out_shape:{}".format(out.shape))
-        score = self.fc2(self.fc1(out)).squeeze(dim=1)
+        # out = torch.cat([out1, out2], dim=1)
+        # score = self.fc2(self.fc1(out)).squeeze(dim=1)
+        # score = torch.sigmoid(score)
 
+        input1 = out1
+        input2 = out2
+        score = torch.cosine_similarity(input1, input2, dim=1)
+
+        # labels = torch.(score)
         # print("score_shape:{}".format(score.shape))
         # score = score.view(score.shape[0] * score.shape[1], score.shape[2])
         return score

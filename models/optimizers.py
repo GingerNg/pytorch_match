@@ -16,11 +16,11 @@ class Optimizer:
 
         for name, parameters in model_parameters.items():
             if name.startswith("basic"):
-                optim = torch.optim.Adam(parameters, lr=learning_rate)
+                optim = torch.optim.Adam(parameters, lr=learning_rate)  # 优化器
                 self.optims.append(optim)
 
                 l = lambda step: decay ** (step // decay_step)
-                scheduler = torch.optim.lr_scheduler.LambdaLR(optim, lr_lambda=l)
+                scheduler = torch.optim.lr_scheduler.LambdaLR(optim, lr_lambda=l)   # 学习率衰减
                 self.schedulers.append(scheduler)
                 self.all_params.extend(parameters)
 
@@ -41,6 +41,8 @@ class Optimizer:
         self.num = len(self.optims)
 
     def step(self):
+        """[按step进行优化]
+        """
         for optim, scheduler in zip(self.optims, self.schedulers):
             optim.step()
             scheduler.step()

@@ -1,6 +1,11 @@
 import pickle
 import codecs
 import ujson
+import os
+
+
+def mkdir_folder(folder):
+    os.makedirs(folder, exist_ok=True)
 
 
 def write_json(filename, dataset):

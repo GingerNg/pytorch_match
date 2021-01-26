@@ -28,9 +28,6 @@ stop_word_path = os.path.join(proj_path, "data/stopwords.txt")
 # 从第几个epoch开始resume训练，如果为0，从头开始
 RESUME_EPOCH = 0
 
-
-
-
 # print(proj_path)
 methods = {
     "textcnn": "cnn_lstm_attention",

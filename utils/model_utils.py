@@ -1,5 +1,6 @@
 import torch
 import os
+from .file_utils import mkdir_folder
 
 # set cuda
 gpu = 0
@@ -17,6 +18,7 @@ def save_checkpoint(model, epoch, save_folder):
                   'model_state_dict': model.state_dict(),
                   # 'optimizer_state_dict': optimizer.state_dict(),
                   'epoch': epoch}
+    mkdir_folder(save_folder)
     save_path = os.path.join(save_folder, 'epoch_{}.pth'.format(epoch))
     torch.save(checkpoint, save_path)
     return save_path
