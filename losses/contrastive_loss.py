@@ -4,7 +4,7 @@ import torch.nn
 
 class ContrastiveLoss(torch.nn.Module):
     """
-    Contrastive loss function.
+    Contrastive loss function. 对比损失函数
     Based on:
     """
 

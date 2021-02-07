@@ -20,10 +20,8 @@ model_name = "bert_match"
 writer = tensorboardX_utils.get_writer(
     "runs/{}/{}".format(dataset_name, model_name))
 
-config.define("raw_path", "data/raw_data/%s" %
-              "Chinese-medical-dialogue-data-master", "path to raw dataset")
-config.define("save_path", "data/dataset/%s" %
-              dataset_name, "path to save dataset")
+config.define("raw_path", "data/raw_data/%s" % "Chinese-medical-dialogue-data-master", "path to raw dataset")  # 原始路径
+config.define("save_path", "data/dataset/%s" % dataset_name, "path to save dataset")
 config.define("glove_name", "840B", "glove embedding name")
 # glove embedding path
 # glove_path = '/data/dh/glove/glove.840B.300d.txt'
@@ -66,7 +64,7 @@ config.define("tuning_emb", False,
 config.define("emb_dim", 300,
               "embedding dimension for encoder and decoder input words/tokens")
 
-config.define("train_batch_size", 8, "train_batch_size")
+config.define("train_batch_size", 16, "train_batch_size")
 config.define("test_batch_size", 16, "test_batch_size")
 config.define("epochs", 100, "epochs")
 config.define("clip", 5.0, "clip")
@@ -88,8 +86,7 @@ def run(mtd="fold_split"):
         else:
             save_folder = os.path.join(cfg.proj_path, "data/bert_nn")
             print(' ******* Resume training from --  epoch {} *********'.format(cfg.RESUME_EPOCH))
-            model = model_utils.load_checkpoint(os.path.join(
-                save_folder, 'epoch_{}.pth'.format(cfg.RESUME_EPOCH)))
+            model = model_utils.load_checkpoint(os.path.join(save_folder, 'epoch_{}.pth'.format(cfg.RESUME_EPOCH)))
 
     def _eval(data):
         model.eval()  # 不启用 BatchNormalization 和 Dropout
@@ -101,14 +98,17 @@ def run(mtd="fold_split"):
                 torch.cuda.empty_cache()
                 batch_inputs, batch_labels = dataset_processer.batch2tensor(
                     batch_data)
-                batch_outputs = model(batch_inputs)
-
-                batch_outputs = batch_outputs.detach().cpu().numpy().tolist()
+                batch_output1, batch_output2 = model(batch_inputs)
+                diff = batch_output1 - batch_output2
+                dist_sq = torch.sum(torch.pow(diff, 2), 1)
+                dist = torch.sqrt(dist_sq)
+                batch_outputs = dist.detach().cpu().numpy().tolist()
+                # print(batch_outputs)
                 for bo in batch_outputs:
                     if bo > 0.5:
-                        y_pred.append(1)
-                    else:
                         y_pred.append(0)
+                    else:
+                        y_pred.append(1)
                 y_true.extend(batch_labels.cpu().numpy().astype('int32').tolist())
 
             # print("y_pred:{}, y_true:{}".format(y_pred, y_true))
@@ -136,7 +136,8 @@ def run(mtd="fold_split"):
                               steps=batch_num * config["epochs"])  # 优化器
 
         #　loss
-        criterion = loss_factory.binarg_loss()
+        # criterion = loss_factory.binarg_loss()
+        criterion = loss_factory.contrastive_loss()
         best_train_f1, best_dev_f1 = 0, 0
         early_stop = -1
         EarlyStopEpochs = 5  # 当多个epoch，dev的指标都没有提升，则早停
@@ -150,12 +151,17 @@ def run(mtd="fold_split"):
             for batch_data in dataset_processer.data_iter(train_data, config["train_batch_size"], shuffle=True):
                 torch.cuda.empty_cache()
                 batch_inputs, batch_labels = dataset_processer.batch2tensor(batch_data)
-                batch_outputs = model(batch_inputs)
-                # print("batch_labels_shape:{}, batch_outputs_shape:{}".format(batch_labels.shape, batch_outputs.shape))
-                loss = criterion(batch_outputs, batch_labels)
+                # model
+                batch_output1, batch_output2 = model(batch_inputs)
+                # diff = batch_output1 - batch_output2
+                # dist_sq = torch.sum(torch.pow(diff, 2), 1)
+                # dist = torch.sqrt(dist_sq)
+                # y_pred = dist.detach().cpu().numpy().tolist()
+                # 计算loss
+                loss = criterion(batch_output1, batch_output2, batch_labels)
                 loss.backward()
 
-                loss_value = loss.detach().cpu().item()
+                loss_value = loss.detach().cpu().item()  # 截断反向传播
                 # losses += loss_value
                 overall_losses += loss_value
 
@@ -170,9 +176,9 @@ def run(mtd="fold_split"):
             overall_losses = scores.reformat(overall_losses, 4)
 
             train_score, train_f1 = _eval(data=train_data)
-
             # score, train_f1 = scores.get_score(y_true, y_pred, average="binary")
             dev_score, dev_f1 = _eval(data=dev_data)
+
             if best_dev_f1 < dev_f1:
                 best_dev_f1 = dev_f1
                 early_stop = 0

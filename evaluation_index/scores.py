@@ -15,6 +15,9 @@ def get_score(y_ture, y_pred, average="macro"):
 
     Returns:
         [type]: [description]
+        p： 精确度
+        f1：
+
     """
     y_ture = np.array(y_ture)
     y_pred = np.array(y_pred)

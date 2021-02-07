@@ -19,12 +19,13 @@ import copy
 
 def split_dataset(raw_path, train_path, dev_path, test_path):
     df = pd.read_csv(raw_path)
-    df = df[df["category"] == "IM_内科"]
-    df = df[0:200]
+    df = df[df["category"] == "IM_内科"]  # 限定科室
+    df = df[0:200]  # 小批量实验
     train_set, dev_test_set = train_test_split(df, shuffle=True, test_size=0.2)
     print(len(dev_test_set))
     print(len(train_set))
-    dev_set, test_set = train_test_split(dev_test_set, shuffle=True, test_size=0.5)
+    dev_set, test_set = train_test_split(
+        dev_test_set, shuffle=True, test_size=0.5)
     train_set.to_csv(train_path)
     dev_set.to_csv(dev_path)
     test_set.to_csv(test_path)
@@ -39,10 +40,14 @@ def process(path):
     data_list = df.values.tolist()
     for data in data_list:
         # print(data)
-        subsequence = {"question": list(data[4]), "answer": list(
-            data[5]), "category": data[6], "tag": 1}
+        subsequence = {
+            "title": list(data[3]),
+            "question": list(data[4]),
+            "answer": list(data[5]),
+            "category": data[6],
+            "tag": 1}
         dataset.append(subsequence)
-    for i in range(len(dataset)-1):
+    for i in range(len(dataset)-1):  # negative sample
         subsequence = copy.deepcopy(dataset[i])
         # 随机采样
         inds = list(range(0, i)) + list(range(i+1, len(dataset)))
@@ -51,6 +56,7 @@ def process(path):
         subsequence["tag"] = 0
         dataset.append(subsequence)
     random.shuffle(dataset)
+    # print(dataset)
     return dataset
 
 
@@ -114,7 +120,7 @@ class DatasetProcesser(object):
 
     def batch2tensor(self, batch_data):
         batch_size = len(batch_data)
-        max_sent_len = 200
+        max_sent_len = 100
         # doc_labels = []
         # for doc_data in batch_data:
         #     # xul
